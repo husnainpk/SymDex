@@ -839,18 +839,42 @@ def routes(
 @app.command()
 def serve(
     port: int = typer.Option(None, "--port", "-p", help="HTTP port (omit for stdio mode)"),
+    host: str = typer.Option(None, "--host", "-h", help="HTTP host (IPv4) default is 127.0.0.1/localhost (omit for stdio mode)"),
     state_dir: Optional[str] = typer.Option(
         None,
         "--state-dir",
         help="State directory for SymDex indexes and registry (for example .symdex)",
     ),
 ) -> None:
-    """Start the MCP server."""
+    """Start the MCP server.
+    
+    :param host: The host to bind the server to. If omitted, will use mcp defaults.
+    :type host: str, optional
+    :param port: The port to bind the server to. If omitted, will use mcp defaults.
+    :type port: int, optional
+    """ 
+    
+    input_args = locals().keys() - ["state_dir"]
+    # drop state_dir from kwargs since it is handled separately
+    kwargs ={
+        i: locals().get(i) for i in input_args if not isinstance(
+            locals().get(i),type(None)
+        )
+    }
+    # bundle everything into kwargs for future expansion of serve command
+    
+    if not isinstance(port, type(None)):
+        assert isinstance(port, int) and 0 < port < 65536, f"Invalid port: {port}. Must be an integer between 1 and 65535"
+    if host and host != "localhost":
+        assert host.count(".") == 3, f"Invalid host: {host}"
+        assert all([0 <= int(x if x.isdigit() else -1) <256 for x in host.split(".")]), f"Invalid host: {host}. Must be a valid IPv4 address"
+    #quick check to ensure host is a valid IPv4 address IPv6 not added 
+
     _apply_state_dir_override(state_dir)
     _maybe_print_update_notice(sys.argv[1:])
     from symdex.mcp.server import mcp
-    if port:
-        mcp.run(transport="streamable-http", port=port)
+    if len(kwargs) != 0:
+        mcp.run(transport="streamable-http", **kwargs)
     else:
         mcp.run()
 
